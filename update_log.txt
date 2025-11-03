@@ -1,0 +1,8 @@
+[2025-10-30T17:09:01.609Z] ID A020 → Estado cambiado a "Por Llamar"
+[2025-10-30T17:09:04.997Z] ID A020 → Estado cambiado a "Resuelto"
+[2025-11-03T16:03:01.486Z] ID A001 → Estado cambiado a "Por Llamar"
+[2025-11-03T16:03:02.287Z] ID A001 → Estado cambiado a "Por Llamar"
+[2025-11-03T16:03:18.892Z] ID A001 → Estado cambiado a "Por Llamar"
+[2025-11-03T16:03:19.716Z] ID A001 → Estado cambiado a "Por Llamar"
+[2025-11-03T16:07:04.470Z] ID A001 → Estado cambiado a "Por Llamar"
+[2025-11-03T16:07:08.762Z] ID A001 → Estado cambiado a "Resuelto"
