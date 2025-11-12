@@ -46,7 +46,7 @@ export default function RootLayout({ children }: any) {
                   />
                 </motion.div>
                 <h1 className="mt-6 text-2xl font-bold text-blue-400 drop-shadow-[0_0_10px_#00aaff]">
-                  ALCALDÍA SANTA ANA ESTE DISTRITO EL CONGO
+                  ALCALDÍA SANTA ANA ESTE DISTRITO COATEPEQUE
                 </h1>
               </motion.div>
             ) : (

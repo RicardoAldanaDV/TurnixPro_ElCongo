@@ -29,7 +29,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
       {/* 🔹 Encabezado */}
       <header className="flex items-center justify-between mb-8 border-b border-blue-800/40 pb-3">
         <h1 className="text-2xl font-bold glow drop-shadow-[0_0_15px_#007bff]">
-          ALCALDIA DE EL CONGO
+          ALCALDIA DE COATEPEQUE
         </h1>
 
         {/* 🔹 Navegación */}
