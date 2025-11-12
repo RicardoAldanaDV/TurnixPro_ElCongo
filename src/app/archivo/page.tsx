@@ -189,6 +189,7 @@ export default function ArchivoPage() {
                   <th className="p-3 text-left">ID</th>
                   <th className="p-3 text-left">Nombres</th>
                   <th className="p-3 text-left">Apellidos</th>
+                  <th className="p-3 text-left">Fecha Registro</th>
                   <th className="p-3 text-left">Fecha Resolución</th>
                 </tr>
               </thead>
@@ -212,6 +213,7 @@ export default function ArchivoPage() {
                     <td className="p-3 font-bold text-white">{g.ID}</td>
                     <td className="p-3 text-gray-200">{g.Nombres}</td>
                     <td className="p-3 text-gray-200">{g.Apellidos}</td>
+                    <td className="p-3 text-blue-300">{g.FechaRegistro}</td>
                     <td className="p-3 text-blue-300">{g.FechaResolucion}</td>
                   </tr>
                 ))}
