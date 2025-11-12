@@ -24,28 +24,30 @@ export default function DashboardPage() {
   const [resueltos, setResueltos] = useState<Gestion[]>([]);
   const [gestionSeleccionada, setGestionSeleccionada] = useState<Gestion | null>(null);
 
+  // 🔁 Obtener gestiones desde la API
   const fetchGestiones = async () => {
     try {
       const res = await fetch("/api/get-gestiones");
       const data = await res.json();
 
-      // 🧠 Leer listas reales del backend
       const pendientesList: Gestion[] = data.pendientes || [];
       const porLlamarList: Gestion[] = data.porLlamar || [];
       const resueltosList: Gestion[] = data.resueltos || [];
 
-      // 🔧 Limpieza de texto (por si hay espacios o minúsculas)
-      const normalizar = (arr: Gestion[]) =>
-        arr.map((g) => ({
-          ...g,
-          Estado: g.Estado?.trim() || "",
-        }));
+      // 🧹 Filtrar filas vacías o sin ID
+      const limpiar = (arr: Gestion[]) =>
+        arr
+          .filter((g) => g.ID && g.ID.trim() !== "")
+          .map((g) => ({
+            ...g,
+            Estado: g.Estado?.trim() || "",
+          }));
 
-      setPendientes(normalizar(pendientesList));
-      setPorLlamar(normalizar(porLlamarList));
-      setResueltos(normalizar(resueltosList));
+      setPendientes(limpiar(pendientesList));
+      setPorLlamar(limpiar(porLlamarList));
+      setResueltos(limpiar(resueltosList));
 
-      // 🔁 Enviar actualización a la pantalla
+      // 🛰️ Enviar lista a la pantalla
       const canal = new BroadcastChannel("pantalla-channel");
       canal.postMessage({
         tipo: "actualizar-lista",
@@ -56,12 +58,14 @@ export default function DashboardPage() {
     }
   };
 
+  // ⏱️ Actualización automática cada 2 segundos
   useEffect(() => {
     fetchGestiones();
-    const interval = setInterval(fetchGestiones, 2000); // 🔄 cada 2 s
+    const interval = setInterval(fetchGestiones, 2000);
     return () => clearInterval(interval);
   }, []);
 
+  // ⚙️ Cambiar estado de una gestión
   const actualizarEstado = async (id: string, nuevoEstado: string) => {
     try {
       console.log("[TurnixPro] Cambiando estado:", { ID: id, nuevoEstado });
@@ -95,21 +99,23 @@ export default function DashboardPage() {
           {pendientes.length === 0 && (
             <p className="text-blue-300 italic">No hay gestiones pendientes</p>
           )}
-          {pendientes.map((g) => (
-            <div
-              key={g.ID}
-              className="cursor-pointer border border-blue-500 rounded p-3 mb-2 hover:bg-blue-900/30 transition shadow-[0_0_6px_#00f]"
-              onClick={() => setGestionSeleccionada(g)}
-            >
-              <p className="text-white font-bold">{g.ID}</p>
-              <p className="text-gray-300">
-                {g.Nombres} {g.Apellidos}
-              </p>
-              <p className="text-xs text-gray-400 italic">
-                🕒 {g.FechaRegistro || "—"}
-              </p>
-            </div>
-          ))}
+          {pendientes
+            .filter((g) => g.ID && g.ID.trim() !== "")
+            .map((g) => (
+              <div
+                key={g.ID}
+                className="cursor-pointer border border-blue-500 rounded p-3 mb-2 hover:bg-blue-900/30 transition shadow-[0_0_6px_#00f]"
+                onClick={() => setGestionSeleccionada(g)}
+              >
+                <p className="text-white font-bold">{g.ID}</p>
+                <p className="text-gray-300">
+                  {g.Nombres} {g.Apellidos}
+                </p>
+                <p className="text-xs text-gray-400 italic">
+                  🕒 {g.FechaRegistro || "—"}
+                </p>
+              </div>
+            ))}
         </div>
 
         {/* 🟨 Por Llamar */}
@@ -120,21 +126,23 @@ export default function DashboardPage() {
           {porLlamar.length === 0 && (
             <p className="text-blue-300 italic">No hay gestiones por llamar</p>
           )}
-          {porLlamar.map((g) => (
-            <div
-              key={g.ID}
-              className="cursor-pointer border border-blue-500 rounded p-3 mb-2 hover:bg-blue-900/30 transition shadow-[0_0_6px_#00f]"
-              onClick={() => setGestionSeleccionada(g)}
-            >
-              <p className="text-white font-bold">{g.ID}</p>
-              <p className="text-gray-300">
-                {g.Nombres} {g.Apellidos}
-              </p>
-              <p className="text-xs text-gray-400 italic">
-                🕒 {g.FechaRegistro || "—"}
-              </p>
-            </div>
-          ))}
+          {porLlamar
+            .filter((g) => g.ID && g.ID.trim() !== "")
+            .map((g) => (
+              <div
+                key={g.ID}
+                className="cursor-pointer border border-blue-500 rounded p-3 mb-2 hover:bg-blue-900/30 transition shadow-[0_0_6px_#00f]"
+                onClick={() => setGestionSeleccionada(g)}
+              >
+                <p className="text-white font-bold">{g.ID}</p>
+                <p className="text-gray-300">
+                  {g.Nombres} {g.Apellidos}
+                </p>
+                <p className="text-xs text-gray-400 italic">
+                  🕒 {g.FechaRegistro || "—"}
+                </p>
+              </div>
+            ))}
         </div>
       </div>
 
