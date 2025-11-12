@@ -17,69 +17,6 @@ export default function NuevoRegistroPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  // 🔹 Función para generar el siguiente ID en secuencia
-  const generarSiguienteID = async (): Promise<string> => {
-    try {
-      const res = await fetch("/api/get-gestiones");
-      const data = await res.json();
-      const todas = data.data || [];
-
-      if (todas.length === 0) return "A001";
-
-      // Extraer todos los IDs válidos (ej. A001, A002, ...)
-      const ids = todas
-        .map((g: any) => g.ID)
-        .filter((id: string) => /^[A-Z]\d{3}$/.test(id));
-
-      if (ids.length === 0) return "A001";
-
-      // Buscar el último ID usado (según letra y número)
-      ids.sort((a: string, b: string) => {
-        const letraA = a[0].charCodeAt(0);
-        const letraB = b[0].charCodeAt(0);
-        const numA = parseInt(a.slice(1));
-        const numB = parseInt(b.slice(1));
-        return letraA === letraB ? numA - numB : letraA - letraB;
-      });
-
-      const ultimoID = ids[ids.length - 1];
-      let letra = ultimoID[0];
-      let numero = parseInt(ultimoID.slice(1)) + 1;
-
-      // Si se pasa de 999, cambiar de letra
-      if (numero > 999) {
-        numero = 1;
-        letra = String.fromCharCode(letra.charCodeAt(0) + 1);
-        if (letra > "Z") letra = "A";
-      }
-
-      const nuevoID = `${letra}${numero.toString().padStart(3, "0")}`;
-
-      // Validar que no exista en la hoja (por si hay huecos)
-      const ocupado = ids.includes(nuevoID);
-      if (ocupado) {
-        // Buscar el siguiente disponible
-        let i = numero + 1;
-        let siguiente = nuevoID;
-        while (ids.includes(siguiente)) {
-          i++;
-          if (i > 999) {
-            i = 1;
-            letra = String.fromCharCode(letra.charCodeAt(0) + 1);
-            if (letra > "Z") letra = "A";
-          }
-          siguiente = `${letra}${i.toString().padStart(3, "0")}`;
-        }
-        return siguiente;
-      }
-
-      return nuevoID;
-    } catch (error) {
-      console.error("Error generando ID secuencial:", error);
-      return "A001";
-    }
-  };
-
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -95,16 +32,11 @@ export default function NuevoRegistroPage() {
     setMessage("");
 
     try {
-      const nuevoID = await generarSiguienteID();
-      console.log("[TurnixPro] Nuevo ID generado:", nuevoID);
-
+      // 🚀 Enviar datos al backend; el ID se genera en /api/add-gestion
       const res = await fetch("/api/add-gestion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ID: nuevoID,
-          ...formData,
-        }),
+        body: JSON.stringify(formData),
       });
 
       if (!res.ok) throw new Error("Error al guardar el registro");
@@ -112,7 +44,14 @@ export default function NuevoRegistroPage() {
       const data = await res.json();
       console.log("[TurnixPro] Gestión guardada:", data);
 
-      setMessage(`✅ Registro guardado con éxito (ID: ${nuevoID})`);
+      // ✅ Mensaje correcto con el ID real asignado
+      if (data?.id) {
+        setMessage(`✅ Registro guardado con éxito (ID: ${data.id})`);
+      } else {
+        setMessage("✅ Registro guardado con éxito");
+      }
+
+      // 🧹 Limpiar formulario
       setFormData({
         Nombres: "",
         Apellidos: "",

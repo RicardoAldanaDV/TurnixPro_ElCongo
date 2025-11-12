@@ -16,67 +16,63 @@ type Gestion = {
   Estado: string;
   FechaRegistro: string;
   FechaResolucion: string;
-  HoraCreacion: string;
 };
 
 export default function DashboardPage() {
   const [pendientes, setPendientes] = useState<Gestion[]>([]);
   const [porLlamar, setPorLlamar] = useState<Gestion[]>([]);
+  const [resueltos, setResueltos] = useState<Gestion[]>([]);
   const [gestionSeleccionada, setGestionSeleccionada] = useState<Gestion | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const fetchGestiones = async () => {
     try {
-      setLoading(true);
       const res = await fetch("/api/get-gestiones");
       const data = await res.json();
 
-      const todas: Gestion[] = data.data || [];
-      const pendientesFiltradas = todas.filter(
-        (g) => g.Estado?.toLowerCase() === "pendiente"
-      );
-      const porLlamarFiltradas = todas.filter(
-        (g) => g.Estado?.toLowerCase() === "por llamar"
-      );
+      // 🧠 Leer listas reales del backend
+      const pendientesList: Gestion[] = data.pendientes || [];
+      const porLlamarList: Gestion[] = data.porLlamar || [];
+      const resueltosList: Gestion[] = data.resueltos || [];
 
-      setPendientes(pendientesFiltradas);
-      setPorLlamar(porLlamarFiltradas);
+      // 🔧 Limpieza de texto (por si hay espacios o minúsculas)
+      const normalizar = (arr: Gestion[]) =>
+        arr.map((g) => ({
+          ...g,
+          Estado: g.Estado?.trim() || "",
+        }));
 
-      //  Actualizar lista en la pantalla
+      setPendientes(normalizar(pendientesList));
+      setPorLlamar(normalizar(porLlamarList));
+      setResueltos(normalizar(resueltosList));
+
+      // 🔁 Enviar actualización a la pantalla
       const canal = new BroadcastChannel("pantalla-channel");
       canal.postMessage({
         tipo: "actualizar-lista",
-        lista: porLlamarFiltradas.map((g) => g.ID),
+        lista: porLlamarList.map((g) => g.ID),
       });
     } catch (error) {
-      console.error("Error al obtener gestiones:", error);
-    } finally {
-      setLoading(false);
+      console.error("❌ Error al obtener gestiones:", error);
     }
   };
 
   useEffect(() => {
     fetchGestiones();
-    const interval = setInterval(fetchGestiones, 3000);
+    const interval = setInterval(fetchGestiones, 2000); // 🔄 cada 2 s
     return () => clearInterval(interval);
   }, []);
 
   const actualizarEstado = async (id: string, nuevoEstado: string) => {
     try {
-      console.log("[TurnixPro]  Actualizando estado:", { ID: id, nuevoEstado });
-
+      console.log("[TurnixPro] Cambiando estado:", { ID: id, nuevoEstado });
       const res = await fetch("/api/update-gestion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        //  CORREGIDO: enviar 'ID' igual que en Sheets
         body: JSON.stringify({ ID: id, nuevoEstado }),
       });
-
       const data = await res.json();
-      console.log("[TurnixPro]  Respuesta update:", data);
-
       if (!res.ok || !data.success) {
-        alert("⚠️ Error al actualizar: " + (data.error || "Respuesta inválida"));
+        alert("⚠️ Error al actualizar estado: " + (data.error || "Respuesta inválida"));
         return;
       }
 
@@ -90,16 +86,8 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen p-6 bg-neutral-900 text-white relative">
-      {/* Spinner pequeño */}
-      {loading && (
-        <div className="fixed bottom-4 right-4 flex items-center gap-2 text-blue-400 text-sm opacity-80">
-          <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
-          <span>Actualizando...</span>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Pendientes */}
+        {/* 🟦 Pendientes */}
         <div className="bg-neutral-900 border border-blue-500 shadow-[0_0_15px_#00f] rounded-lg p-4">
           <h2 className="text-lg font-bold mb-3 text-blue-400">
             Pendientes ({pendientes.length})
@@ -118,13 +106,13 @@ export default function DashboardPage() {
                 {g.Nombres} {g.Apellidos}
               </p>
               <p className="text-xs text-gray-400 italic">
-                🕒 {g.HoraCreacion || "—"}
+                🕒 {g.FechaRegistro || "—"}
               </p>
             </div>
           ))}
         </div>
 
-        {/* Por Llamar */}
+        {/* 🟨 Por Llamar */}
         <div className="bg-neutral-900 border border-blue-500 shadow-[0_0_15px_#00f] rounded-lg p-4">
           <h2 className="text-lg font-bold mb-3 text-blue-400">
             Por Llamar ({porLlamar.length})
@@ -143,15 +131,18 @@ export default function DashboardPage() {
                 {g.Nombres} {g.Apellidos}
               </p>
               <p className="text-xs text-gray-400 italic">
-                🕒 {g.HoraCreacion || "—"}
+                🕒 {g.FechaRegistro || "—"}
               </p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Modal de detalles */}
-      <Dialog.Root open={!!gestionSeleccionada} onOpenChange={() => setGestionSeleccionada(null)}>
+      {/* 🪟 Modal de detalles */}
+      <Dialog.Root
+        open={!!gestionSeleccionada}
+        onOpenChange={() => setGestionSeleccionada(null)}
+      >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
           <Dialog.Content className="fixed top-1/2 left-1/2 w-[500px] max-h-[80vh] overflow-y-auto -translate-x-1/2 -translate-y-1/2 bg-neutral-900 border border-blue-500 shadow-[0_0_20px_#00f] p-6 rounded-lg text-white">
@@ -187,17 +178,11 @@ export default function DashboardPage() {
                 </button>
               </Dialog.Close>
 
-              {/* Acciones */}
               {gestionSeleccionada?.Estado.toLowerCase() === "pendiente" && (
                 <button
-                  onClick={() => {
-                    console.log("[TurnixPro] 🧩 gestión seleccionada:", gestionSeleccionada);
-                    if (!gestionSeleccionada?.ID || gestionSeleccionada.ID.trim() === "") {
-                      alert("⚠️ Esta gestión no tiene un ID válido.");
-                      return;
-                    }
-                    actualizarEstado(gestionSeleccionada.ID, "Por Llamar");
-                  }}
+                  onClick={() =>
+                    actualizarEstado(gestionSeleccionada.ID, "Por Llamar")
+                  }
                   className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-white"
                 >
                   Pasar a Por Llamar
@@ -209,7 +194,10 @@ export default function DashboardPage() {
                   <button
                     onClick={() => {
                       const canal = new BroadcastChannel("pantalla-channel");
-                      canal.postMessage({ tipo: "llamar", id: gestionSeleccionada.ID });
+                      canal.postMessage({
+                        tipo: "llamar",
+                        id: gestionSeleccionada.ID,
+                      });
                       canal.postMessage({
                         tipo: "actualizar-lista",
                         lista: porLlamar.map((g) => g.ID),
@@ -221,7 +209,9 @@ export default function DashboardPage() {
                   </button>
 
                   <button
-                    onClick={() => actualizarEstado(gestionSeleccionada.ID, "Resuelto")}
+                    onClick={() =>
+                      actualizarEstado(gestionSeleccionada.ID, "Resuelto")
+                    }
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-white"
                   >
                     Resuelto
