@@ -32,7 +32,7 @@ export default function NuevoRegistroPage() {
     setMessage("");
 
     try {
-      // 🚀 Enviar datos al backend; el ID se genera en /api/add-gestion
+      //  Enviar datos al backend; el ID se genera en /api/add-gestion
       const res = await fetch("/api/add-gestion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,13 +44,14 @@ export default function NuevoRegistroPage() {
       const data = await res.json();
       console.log("[TurnixPro] Gestión guardada:", data);
 
-      // ✅ Mensaje correcto con el ID real asignado
-      if (data?.id) {
-        setMessage(`✅ Registro guardado con éxito (ID: ${data.id})`);
+      //  Mensaje correcto con el ID real asignado
+          const visibleId = data?.token ?? data?.id;
+
+      if (visibleId) {
+        setMessage(`✅ Registro guardado con éxito (ID: ${visibleId})`);
       } else {
         setMessage("✅ Registro guardado con éxito");
       }
-
       // 🧹 Limpiar formulario
       setFormData({
         Nombres: "",

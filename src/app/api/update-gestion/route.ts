@@ -1,104 +1,75 @@
 import { NextResponse } from "next/server";
-import getGoogleSheetsClient from "@/lib/googleSheets";
-import dotenv from "dotenv";
-import path from "path";
-import fs from "fs";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// Detectar entorno (Electron o desarrollo)
-const isElectron = !!(process && process.versions && process.versions.electron);
-const basePath = isElectron ? (process as any).resourcesPath : process.cwd();
-const envPath = path.join(basePath, "env/.env.local");
+function normalizarEstado(estado: string): "pendiente" | "porllamar" | "resuelto" {
+  const e = String(estado ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/[\s_]+/g, ""); // quita espacios y underscores
 
-// Cargar variables de entorno
-if (fs.existsSync(envPath)) {
-  dotenv.config({ path: envPath });
-} else {
-  dotenv.config();
+  if (e === "pendiente") return "pendiente";
+  if (e === "porllamar") return "porllamar";
+  if (e === "resuelto") return "resuelto";
+  return "pendiente";
 }
-
-const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID as string;
-const SHEET_NAME = process.env.SHEET_NAME || "Sheet1";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const id = body.id || body.ID;
-    const nuevoEstado = body.nuevoEstado || body.NuevoEstado;
 
-    if (!id || !nuevoEstado) {
-      console.warn("[TurnixPro ElCongo] ❌ Falta id o nuevoEstado:", body);
-      return NextResponse.json({ error: "Faltan parámetros" }, { status: 400 });
+    // ✅ ahora el identificador real de la app será token,
+    // pero aceptamos varios nombres para compatibilidad:
+    const rawToken =
+      body.token ?? body.Token ?? body.ID ?? body.id ?? body.ID_;
+
+    const rawEstado = body.nuevoEstado ?? body.estado ?? body.Estado;
+
+    if (rawToken === undefined || rawEstado === undefined) {
+      console.warn("[TurnixPro] ❌ Faltan parámetros:", body);
+      return NextResponse.json(
+        { success: false, error: "Faltan parámetros (token/ID o nuevoEstado)" },
+        { status: 400 }
+      );
     }
 
-    const sheets = await getGoogleSheetsClient();
-
-    console.log(`[TurnixPro ElCongo] 🔎 Buscando ID ${id} en hoja: ${SHEET_NAME}`);
-
-    // Leer la columna A (IDs)
-    const readRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:A`,
-    });
-
-    const rows = readRes.data.values || [];
-    let rowIndex = -1;
-
-    rows.forEach((row, i) => {
-      if (row[0] === id) rowIndex = i;
-    });
-
-    if (rowIndex === -1) {
-      console.warn(`[TurnixPro ElCongo] ⚠️ ID ${id} no encontrado en ${SHEET_NAME}`);
-      return NextResponse.json({ error: "ID no encontrado" }, { status: 404 });
+    const token = Number(rawToken);
+    if (!Number.isFinite(token) || token <= 0) {
+      return NextResponse.json(
+        { success: false, error: "Token inválido" },
+        { status: 400 }
+      );
     }
 
-    const updates: any[] = [];
+    const estado = normalizarEstado(String(rawEstado));
 
-    // 🔹 Actualizar Estado (columna J)
-    updates.push({
-      range: `${SHEET_NAME}!J${rowIndex + 1}`,
-      values: [[nuevoEstado]],
-    });
+    const updateData: any = { estado };
 
-    // 🔹 Si es "Resuelto", agregar fecha en columna L
-    if (nuevoEstado === "Resuelto") {
-      const fecha = new Date().toLocaleString("es-SV", {
-        timeZone: "America/El_Salvador",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      updates.push({
-        range: `${SHEET_NAME}!L${rowIndex + 1}`,
-        values: [[fecha]],
-      });
+    if (estado === "resuelto") {
+      updateData.fecha_resolucion = new Date().toISOString();
+    } else {
+      updateData.fecha_resolucion = null;
     }
 
-    const result = await sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId: SPREADSHEET_ID,
-      requestBody: {
-        valueInputOption: "USER_ENTERED",
-        data: updates,
-      },
-    });
+    const { error } = await supabaseAdmin
+      .from("gestiones")
+      .update(updateData)
+      .eq("token", token);
 
-    const logPath = path.join(basePath, "update_log.txt");
-    fs.appendFileSync(
-      logPath,
-      `[${new Date().toISOString()}] ID ${id} → Estado cambiado a "${nuevoEstado}"\n`
+    if (error) {
+      console.error("[TurnixPro] ❌ Error actualizando estado:", error);
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    console.error("[TurnixPro] ❌ Excepción update-gestion:", message);
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
     );
-
-    console.log(`[TurnixPro ElCongo] ✅ ${id} → Estado actualizado a "${nuevoEstado}"`);
-    return NextResponse.json({ success: true, result });
-  } catch (error: any) {
-    console.error("❌ Error actualizando gestión:", error);
-    const logPath = path.join(basePath, "error_log.txt");
-    fs.appendFileSync(
-      logPath,
-      `[${new Date().toISOString()}] ${error.stack || error.message}\n`
-    );
-    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

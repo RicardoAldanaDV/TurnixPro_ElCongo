@@ -1,49 +1,46 @@
 import { NextResponse } from "next/server";
-import getGoogleSheetsClient from "@/lib/googleSheets";
-import * as XLSX from "xlsx";
-import dotenv from "dotenv";
-import path from "path";
-import fs from "fs";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const isElectron = !!(process && process.versions && process.versions.electron);
-const basePath = isElectron ? (process as any).resourcesPath : process.cwd();
-const envPath = path.join(basePath, "env/.env.local");
-if (fs.existsSync(envPath)) {
-  dotenv.config({ path: envPath });
-} else {
-  dotenv.config();
+function toCSV(data: any[]) {
+  if (data.length === 0) return "";
+
+  const headers = Object.keys(data[0]);
+
+  const rows = data.map(row =>
+    headers.map(h => {
+      const value = row[h];
+      if (value === null || value === undefined) return "";
+      return `"${String(value).replace(/"/g, '""')}"`;
+    }).join(",")
+  );
+
+  return [headers.join(","), ...rows].join("\n");
 }
-
-const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID as string;
-const SHEET_NAME = process.env.SHEET_NAME || "Sheet1";
 
 export async function GET() {
   try {
-    const sheets = await getGoogleSheetsClient();
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:L`,
-    });
+    const { data, error } = await supabaseAdmin
+      .from("gestiones")
+      .select("*")
+      .order("id", { ascending: true });
 
-    const rows = res.data.values || [];
-    if (rows.length <= 1) {
-      return NextResponse.json({ error: "No hay gestiones para exportar" }, { status: 400 });
-    }
+    if (error) throw error;
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Gestiones");
-    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const csv = toCSV(data ?? []);
 
-    return new NextResponse(buffer, {
-      status: 200,
+    return new NextResponse(csv, {
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="backup_turnix_${Date.now()}.xlsx"`,
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": "attachment; filename=backup_gestiones.csv",
       },
     });
-  } catch (err: any) {
-    console.error("Error creando backup:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error desconocido";
+    console.error("[TurnixPro] Error backup-excel:", message);
+
+    return NextResponse.json(
+      { error: "Error generando backup" },
+      { status: 500 }
+    );
   }
 }

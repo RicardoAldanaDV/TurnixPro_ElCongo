@@ -6,6 +6,40 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import * as Dialog from "@radix-ui/react-dialog";
 
+function formatearFechaHora(value?: string | null) {
+  if (!value) return "—";
+
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("es-SV", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+    timeZone: "America/El_Salvador",
+  }).format(d);
+}
+
+// Si tu FechaNacimiento viene como "2000-03-31" y quieres que se vea bonito:
+function formatearSoloFecha(value?: string | null) {
+  if (!value) return "—";
+
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("es-SV", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "America/El_Salvador",
+  }).format(d);
+}
+
+
 type Gestion = {
   ID: string;
   Nombres: string;
@@ -37,10 +71,10 @@ export default function ArchivoPage() {
 
   const filtradas = gestiones.filter(
     (g) =>
-      g.ID.toLowerCase().includes(busqueda.toLowerCase()) ||
-      g.Nombres.toLowerCase().includes(busqueda.toLowerCase()) ||
-      g.Apellidos.toLowerCase().includes(busqueda.toLowerCase()) ||
-      g.FechaResolucion.toLowerCase().includes(busqueda.toLowerCase())
+      (g.ID ?? "").toLowerCase().includes(busqueda.toLowerCase()) ||
+      (g.Nombres ?? "").toLowerCase().includes(busqueda.toLowerCase()) ||
+      (g.Apellidos ?? "").toLowerCase().includes(busqueda.toLowerCase()) ||
+      (g.FechaResolucion ?? "").toLowerCase().includes(busqueda.toLowerCase())
   );
 
     const hacerBackup = async () => {
@@ -104,7 +138,7 @@ export default function ArchivoPage() {
    const limpiarArchivo = async () => {
     if (confirm("⚠️ ¿Estás seguro de limpiar todas las gestiones resueltas?")) {
       try {
-        const res = await fetch("/api/clear-historial", { method: "POST" });
+        const res = await fetch("/api/clear-historial", { method: "DELETE" });
         if (res.ok) {
           // ✅ Mensaje verde flotante
           const msg = document.createElement("div");
@@ -124,7 +158,6 @@ export default function ArchivoPage() {
 
           window.location.reload();
         } else {
-          // ❌ Mensaje rojo flotante
           const msg = document.createElement("div");
           msg.textContent = "❌ Error al limpiar el archivo";
           msg.style.position = "fixed";
@@ -213,8 +246,8 @@ export default function ArchivoPage() {
                     <td className="p-3 font-bold text-white">{g.ID}</td>
                     <td className="p-3 text-gray-200">{g.Nombres}</td>
                     <td className="p-3 text-gray-200">{g.Apellidos}</td>
-                    <td className="p-3 text-blue-300">{g.FechaRegistro}</td>
-                    <td className="p-3 text-blue-300">{g.FechaResolucion}</td>
+                    <td className="p-3 text-blue-300">{formatearFechaHora(g.FechaRegistro)}</td>
+                    <td className="p-3 text-blue-300">{formatearFechaHora(g.FechaResolucion)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -237,7 +270,7 @@ export default function ArchivoPage() {
                 <p><b>Nombres:</b> {gestionSeleccionada.Nombres}</p>
                 <p><b>Apellidos:</b> {gestionSeleccionada.Apellidos}</p>
                 <p><b>Género:</b> {gestionSeleccionada.Genero}</p>
-                <p><b>Fecha de Nacimiento:</b> {gestionSeleccionada.FechaNacimiento}</p>
+                <p><b>Fecha de Nacimiento:</b> {formatearSoloFecha(gestionSeleccionada.FechaNacimiento)}</p>
                 <p><b>Nombre del Padre:</b> {gestionSeleccionada.NombrePadre}</p>
                 <p><b>Nombre de la Madre:</b> {gestionSeleccionada.NombreMadre}</p>
                 <p><b>Lugar de Nacimiento:</b> {gestionSeleccionada.LugarNacimiento}</p>
@@ -247,8 +280,8 @@ export default function ArchivoPage() {
                   {gestionSeleccionada.Comentarios || "Sin comentarios"}
                 </div>
 
-                <p><b>Fecha Registro:</b> {gestionSeleccionada.FechaRegistro}</p>
-                <p><b>Fecha Resolución:</b> {gestionSeleccionada.FechaResolucion}</p>
+                <p><b>Fecha Registro:</b> {formatearFechaHora(gestionSeleccionada.FechaRegistro)}</p>
+                <p><b>Fecha Resolución:</b> {formatearFechaHora(gestionSeleccionada.FechaResolucion)}</p>
               </div>
             )}
             <div className="flex justify-between items-center mt-6">

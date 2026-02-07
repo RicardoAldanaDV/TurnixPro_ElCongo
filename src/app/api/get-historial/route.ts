@@ -1,42 +1,52 @@
 import { NextResponse } from "next/server";
-import getGoogleSheetsClient from "@/lib/googleSheets";
-import dotenv from "dotenv";
-import path from "path";
-import fs from "fs";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const isElectron = !!(process && process.versions && process.versions.electron);
-const basePath = isElectron ? (process as any).resourcesPath : process.cwd();
-const envPath = path.join(basePath, "env/.env.local");
-if (fs.existsSync(envPath)) {
-  dotenv.config({ path: envPath });
-} else {
-  dotenv.config();
+type GestionFrontend = {
+  ID: string; // token
+  Nombres: string;
+  Apellidos: string;
+  Genero: string;
+  FechaNacimiento: string;
+  NombrePadre: string;
+  NombreMadre: string;
+  LugarNacimiento: string;
+  Comentarios: string;
+  Estado: string;
+  FechaRegistro: string;
+  FechaResolucion: string;
+};
+
+function mapGestion(g: any): GestionFrontend {
+  return {
+    ID: String(g.token ?? ""), // ✅ token
+    Nombres: g.nombres ?? "",
+    Apellidos: g.apellidos ?? "",
+    Genero: g.genero ?? "",
+    FechaNacimiento: g.fecha_nacimiento ?? "",
+    NombrePadre: g.nombre_padre ?? "",
+    NombreMadre: g.nombre_madre ?? "",
+    LugarNacimiento: g.lugar_nacimiento ?? "",
+    Comentarios: g.comentarios ?? "",
+    Estado: g.estado ?? "",
+    FechaRegistro: g.fecha_registro ?? "",
+    FechaResolucion: g.fecha_resolucion ?? "",
+  };
 }
-
-const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID as string;
-const SHEET_NAME = process.env.SHEET_NAME || "Sheet1";
 
 export async function GET() {
   try {
-    const sheets = await getGoogleSheetsClient();
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:L`,
-    });
+    const { data, error } = await supabaseAdmin
+      .from("gestiones")
+      .select("id, token, nombres, apellidos, genero, fecha_nacimiento, nombre_padre, nombre_madre, lugar_nacimiento, comentarios, estado, fecha_registro, fecha_resolucion")
+      .eq("estado", "resuelto")
+      .order("token", { ascending: false });
 
-    const rows = res.data.values || [];
-    const headers = rows[0] || [];
+    if (error) throw error;
 
-    const gestiones = rows.slice(1).map((row: string[]) => {
-      const obj: Record<string, string> = {};
-      headers.forEach((h: string, i: number) => (obj[h] = row[i] || ""));
-      return obj;
-    });
-
-    const resueltas = gestiones.filter((g) => g.Estado === "Resuelto");
-    return NextResponse.json({ data: resueltas });
-  } catch (err: any) {
-    console.error("Error leyendo historial:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ data: (data ?? []).map(mapGestion) });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    console.error("[TurnixPro] Error leyendo historial:", message);
+    return NextResponse.json({ error: "Error leyendo historial" }, { status: 500 });
   }
 }

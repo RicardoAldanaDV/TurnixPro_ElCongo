@@ -1,47 +1,73 @@
 import { NextResponse } from "next/server";
-import getGoogleSheetsClient from "@/lib/googleSheets";
-import dotenv from "dotenv";
-import path from "path";
-import fs from "fs";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const isElectron = !!(process && (process as any).versions?.electron);
-const basePath = isElectron ? (process as any).resourcesPath : process.cwd();
-const envPath = path.join(basePath, "env/.env.local");
-if (fs.existsSync(envPath)) dotenv.config({ path: envPath }); else dotenv.config();
+type GestionFrontend = {
+  ID: string; // en la app será el TOKEN
+  Nombres: string;
+  Apellidos: string;
+  Genero: string;
+  FechaNacimiento: string;
+  NombrePadre: string;
+  NombreMadre: string;
+  LugarNacimiento: string;
+  Comentarios: string;
+  Estado: string;
+  FechaRegistro: string;
+  FechaResolucion: string;
+};
 
-const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID as string;
-const SHEET_NAME = process.env.SHEET_NAME || "Sheet1";
+function mapGestion(g: any): GestionFrontend {
+  return {
+    ID: String(g.token ?? ""), // ✅ ahora ID = token
+    Nombres: g.nombres ?? "",
+    Apellidos: g.apellidos ?? "",
+    Genero: g.genero ?? "",
+    FechaNacimiento: g.fecha_nacimiento ?? "",
+    NombrePadre: g.nombre_padre ?? "",
+    NombreMadre: g.nombre_madre ?? "",
+    LugarNacimiento: g.lugar_nacimiento ?? "",
+    Comentarios: g.comentarios ?? "",
+    Estado: g.estado ?? "",
+    FechaRegistro: g.fecha_registro ?? "",
+    FechaResolucion: g.fecha_resolucion ?? "",
+  };
+}
 
 export async function GET() {
   try {
-    const sheets = await getGoogleSheetsClient();
-    const range = `${SHEET_NAME}!A:L`;
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range });
+    // ✅ trae token e id por si ocupas debug, pero para UI usaremos token
+    const { data, error } = await supabaseAdmin
+      .from("gestiones")
+      .select("id, token, nombres, apellidos, genero, fecha_nacimiento, nombre_padre, nombre_madre, lugar_nacimiento, comentarios, estado, fecha_registro, fecha_resolucion")
+      .order("token", { ascending: true });
 
-    const rows = res.data.values ?? [];
-    if (rows.length <= 1) {
-      return NextResponse.json({ pendientes: [], porLlamar: [], resueltos: [] });
+    if (error) throw error;
+
+    const pendientes: GestionFrontend[] = [];
+    const porLlamar: GestionFrontend[] = [];
+    const resueltos: GestionFrontend[] = [];
+
+    for (const g of data ?? []) {
+      const mapped = mapGestion(g);
+      const estado = String(mapped.Estado ?? "").trim().toLowerCase().replace(/[\s_]+/g, "");
+
+      if (estado === "pendiente") pendientes.push(mapped);
+      else if (estado === "porllamar") porLlamar.push(mapped);
+      else if (estado === "resuelto") resueltos.push(mapped);
     }
 
-    const header = rows[0].map((h: any) => String(h).trim());
-    const data = rows.slice(1).map(r => {
-      const obj: any = {};
-      header.forEach((h: string, i: number) => (obj[h] = (r[i] ?? "").toString().trim()));
-      obj.Estado =
-        obj.Estado === "Por Llamar"
-          ? "Por Llamar"
-          : obj.Estado === "Resuelto"
-          ? "Resuelto"
-          : "Pendiente";
-      return obj;
+    return NextResponse.json({
+      pendientes,
+      porLlamar,
+      resueltos,
     });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error desconocido";
+    console.error("[TurnixPro] ❌ Error get-gestiones:", message);
 
-    const pendientes = data.filter((d: any) => d.Estado === "Pendiente");
-    const porLlamar = data.filter((d: any) => d.Estado === "Por Llamar");
-    const resueltos = data.filter((d: any) => d.Estado === "Resuelto");
-
-    return NextResponse.json({ pendientes, porLlamar, resueltos });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? String(err) }, { status: 500 });
+    return NextResponse.json(
+      { error: "Error al obtener gestiones" },
+      { status: 500 }
+    );
   }
 }

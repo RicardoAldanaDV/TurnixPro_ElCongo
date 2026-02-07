@@ -1,116 +1,62 @@
 import { NextResponse } from "next/server";
-import getGoogleSheetsClient from "@/lib/googleSheets";
-import dotenv from "dotenv";
-import path from "path";
-import fs from "fs";
-import { getNextIdRobusto, idExiste } from "@/lib/nextId";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const isElectron = !!(process && (process as any).versions?.electron);
-const basePath = isElectron ? (process as any).resourcesPath : process.cwd();
-const envPath = path.join(basePath, "env/.env.local");
-if (fs.existsSync(envPath)) dotenv.config({ path: envPath }); else dotenv.config();
+export const runtime = "nodejs";
 
-const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID as string;
-const SHEET_NAME = process.env.SHEET_NAME || "Sheet1";
+function normalizarEstado(estado: any): string {
+  // Acepta "porLlamar", "Por Llamar", "porllamar", etc.
+  const e = String(estado ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "") // quita espacios
+    .replace(/_/g, "");  // quita underscores
+
+  if (e === "porllamar") return "porllamar";
+  if (e === "resuelto") return "resuelto";
+  return "pendiente";
+}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // 🕓 Fecha local legible
-    const now = new Date();
-    const nowFormatted = now.toLocaleString("es-SV", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-      timeZone: "America/El_Salvador",
-    });
+    const estado = normalizarEstado(body.Estado);
 
-    // Estado normalizado
-    const Estado =
-      body.Estado === "Por Llamar"
-        ? "Por Llamar"
-        : body.Estado === "Resuelto"
-        ? "Resuelto"
-        : "Pendiente";
-
-    // Datos base
-    const fila = {
-      Nombres: String(body.Nombres ?? "").trim(),
-      Apellidos: String(body.Apellidos ?? "").trim(),
-      Genero: String(body.Genero ?? "").trim(),
-      FechaNacimiento: String(body.FechaNacimiento ?? "").trim(),
-      NombrePadre: String(body.NombrePadre ?? "").trim(),
-      NombreMadre: String(body.NombreMadre ?? "").trim(),
-      LugarNacimiento: String(body.LugarNacimiento ?? "").trim(),
-      Comentarios: String(body.Comentarios ?? "").trim(),
-      Estado,
-      FechaRegistro: nowFormatted,
-      FechaResolucion: Estado === "Resuelto" ? nowFormatted : "",
+    const payload = {
+      p_nombres: String(body.Nombres ?? "").trim(),
+      p_apellidos: String(body.Apellidos ?? "").trim(),
+      p_genero: String(body.Genero ?? "").trim(),
+      p_fecha_nacimiento: body.FechaNacimiento || null,
+      p_nombre_padre: String(body.NombrePadre ?? "").trim(),
+      p_nombre_madre: String(body.NombreMadre ?? "").trim(),
+      p_lugar_nacimiento: String(body.LugarNacimiento ?? "").trim(),
+      p_comentarios: String(body.Comentarios ?? "").trim(),
+      p_estado: estado,
     };
 
-    const sheets = await getGoogleSheetsClient();
+    const { data, error } = await supabaseAdmin.rpc(
+      "crear_gestion_con_token",
+      payload
+    );
 
-    let intento = 0;
-    let asignado = "";
-
-    // 🔁 Hasta 3 intentos para evitar colisiones
-    while (intento < 3) {
-      intento++;
-      const nextId = await getNextIdRobusto(sheets, SPREADSHEET_ID, SHEET_NAME);
-
-      if (await idExiste(sheets, SPREADSHEET_ID, SHEET_NAME, nextId)) {
-        await new Promise(r => setTimeout(r, 150));
-        continue;
-      }
-
-      const rowValues = [
-        nextId,
-        fila.Nombres,
-        fila.Apellidos,
-        fila.Genero,
-        fila.FechaNacimiento,
-        fila.NombrePadre,
-        fila.NombreMadre,
-        fila.LugarNacimiento,
-        fila.Comentarios,
-        fila.Estado,
-        fila.FechaRegistro,
-        fila.FechaResolucion,
-      ];
-
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_NAME}!A:L`,
-        valueInputOption: "RAW",
-        insertDataOption: "INSERT_ROWS",
-        requestBody: { values: [rowValues] },
-      });
-
-      // 🔍 Verifica si realmente se escribió
-      if (await idExiste(sheets, SPREADSHEET_ID, SHEET_NAME, nextId)) {
-        asignado = nextId;
-        break;
-      }
-
-      await new Promise(r => setTimeout(r, 200));
-    }
-
-    if (!asignado) {
+    if (error) {
+      console.error("❌ Error RPC crear_gestion_con_token:", error);
       return NextResponse.json(
-        { ok: false, error: "No fue posible asignar un ID único tras 3 intentos." },
-        { status: 409 }
+        { ok: false, error: error.message },
+        { status: 500 }
       );
     }
 
-    // ✅ Devuelve el ID correcto al frontend
-    return NextResponse.json({ ok: true, id: asignado });
+    // RPC normalmente devuelve array con 1 elemento
+    const row = Array.isArray(data) ? data[0] : data;
+
+    return NextResponse.json({
+      ok: true,
+      id: row?.id,       // ID real de BD (autoincrement, puede subir infinito)
+      token: row?.token, // ID reutilizable para tu app/UI
+    });
   } catch (err: any) {
-    console.error("🔥 [TurnixPro] Error interno al guardar gestión:", err);
+    console.error("🔥 Error interno add-gestion:", err);
     return NextResponse.json(
       { ok: false, error: err?.message ?? String(err) },
       { status: 500 }
